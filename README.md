@@ -18,6 +18,10 @@ See [blog](https://int64.me/2020/%e5%9c%a8%e5%ae%b9%e5%99%a8%e4%b8%ad%e8%ae%a9%e
 [root@tencent-shit faketime]# faketime --pid [pid] --sec [sec]
 ```
 
+### Demo
+
+![demo](https://raw.githubusercontent.com/gowins/faketime/main/faketime.gif)
+
 ### Help
 
 ```sh
