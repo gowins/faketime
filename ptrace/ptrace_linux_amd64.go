@@ -1,14 +1,5 @@
 package ptrace
 
-/*
-#include <stdint.h>
-struct iovec {
-	intptr_t iov_base;
-	size_t iov_len;
-};
-*/
-import "C"
-
 import (
 	"bytes"
 	"debug/elf"
@@ -18,10 +9,11 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"unsafe"
 
 	"github.com/gowins/faketime/mapreader"
 	"github.com/pkg/errors"
+
+	"golang.org/x/sys/unix"
 )
 
 const waitPidErrorMessage = "waitpid ret value: %d"
@@ -289,20 +281,20 @@ func (p *TracedProgram) Mmap(length uint64, fd uint64) (uint64, error) {
 func (p *TracedProgram) ReadSlice(addr uint64, size uint64) (*[]byte, error) {
 	buffer := make([]byte, size)
 
-	localIov := C.struct_iovec{
-		iov_base: C.long(uintptr(unsafe.Pointer(&buffer[0]))),
-		iov_len:  C.ulong(size),
+	localIov := unix.Iovec{
+		Base: &buffer[0],
+		Len:  size,
 	}
 
-	remoteIov := C.struct_iovec{
-		iov_base: C.long(addr),
-		iov_len:  C.ulong(size),
+	remoteIov := unix.RemoteIovec{
+		Base: uintptr(addr),
+		Len:  int(size),
 	}
 
 	// process_vm_readv syscall number is 310
-	_, _, errno := syscall.Syscall6(310, uintptr(p.pid), uintptr(unsafe.Pointer(&localIov)), uintptr(1), uintptr(unsafe.Pointer(&remoteIov)), uintptr(1), uintptr(0))
-	if errno != 0 {
-		return nil, errors.WithStack(errno)
+	_, err := unix.ProcessVMReadv(p.pid, []unix.Iovec{localIov}, []unix.RemoteIovec{remoteIov}, 0)
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
 	// TODO: check size and warn
 
@@ -313,20 +305,20 @@ func (p *TracedProgram) ReadSlice(addr uint64, size uint64) (*[]byte, error) {
 func (p *TracedProgram) WriteSlice(addr uint64, buffer []byte) error {
 	size := len(buffer)
 
-	localIov := C.struct_iovec{
-		iov_base: C.long(uintptr(unsafe.Pointer(&buffer[0]))),
-		iov_len:  C.ulong(size),
+	localIov := unix.Iovec{
+		Base: &buffer[0],
+		Len:  uint64(size),
 	}
 
-	remoteIov := C.struct_iovec{
-		iov_base: C.long(addr),
-		iov_len:  C.ulong(size),
+	remoteIov := unix.RemoteIovec{
+		Base: uintptr(addr),
+		Len:  int(size),
 	}
 
 	// process_vm_writev syscall number is 311
-	_, _, errno := syscall.Syscall6(311, uintptr(p.pid), uintptr(unsafe.Pointer(&localIov)), uintptr(1), uintptr(unsafe.Pointer(&remoteIov)), uintptr(1), uintptr(0))
-	if errno != 0 {
-		return errors.WithStack(errno)
+	_, err := unix.ProcessVMWritev(p.pid, []unix.Iovec{localIov}, []unix.RemoteIovec{remoteIov}, 0)
+	if err != nil {
+		return errors.WithStack(err)
 	}
 	// TODO: check size and warn
 
